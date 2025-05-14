@@ -1,6 +1,0 @@
-instructor
-openai
-yt_dlp
-telethon
-python-dotenv
-pydantic
