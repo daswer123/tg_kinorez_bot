@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  telegram_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clipmaker-bot
+    volumes:
+      # Монтируем .env файл, чтобы не хранить чувствительные данные в образе
+      - ./test_code/.env.template:/app/.env
+      # Монтируем директорию с сессией Telegram для сохранения авторизации
+      - ./test_code/user_session.session:/app/user_session.session
+      # Монтируем директорию для временных файлов
+      - ./temp_videos:/app/temp_videos
+    restart: unless-stopped
+    environment:
+      # При необходимости можно переопределить переменные окружения здесь
+      - PYTHONUNBUFFERED=1
+    # Опционально: настройка прокси, если требуется
+    # Раскомментируйте для использования прокси
+    # extra_hosts:
+    #   - "proxy-host:123.45.67.89"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3" 

@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Временные и медиа файлы
+test_code/temp_videos/*
+!test_code/temp_videos/.gitkeep
+
+# Не игнорировать файл .env.template
+!test_code/.env.template
+
+# Логи и сессии (сессии лучше хранить отдельно)
+*.log
+*.session
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo 
