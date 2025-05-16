@@ -7,7 +7,7 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.infrastructure.database.middleware import (
-    IsAuthorizedFilter, NotAuthorizedFilter, IsAdminFilter, IsWaitingForPasswordFilter,
+    IsAuthorizedFilter, NotAuthorizedFilter, IsWaitingForPasswordFilter,
     save_user_info, authorize_user, set_waiting_for_password, check_password, get_password_attempts
 )
 from app.core.config import settings
@@ -24,7 +24,6 @@ password_router = Router(name="password_router")
 # Add filters to routers
 auth_router.message.filter(IsAuthorizedFilter())
 non_auth_router.message.filter(NotAuthorizedFilter())
-admin_router.message.filter(IsAdminFilter())
 password_router.message.filter(IsWaitingForPasswordFilter())
 
 # --- Password handling ---
