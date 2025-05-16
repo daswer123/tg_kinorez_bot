@@ -14,10 +14,11 @@ main_handlers_router = Router(name="main-router")
 main_handlers_router.include_router(password_router)  # Password handling must be first
 main_handlers_router.include_router(non_auth_router)  # Non-authorized users handlers
 main_handlers_router.include_router(auth_router)      # Authorized users handlers 
-main_handlers_router.include_router(admin_router)     # Admin handlers
 
 # Regular feature routers
 main_handlers_router.include_router(start_router)
 
 # Video handler for all video sources (YouTube, VK, Яндекс.Диск)
 main_handlers_router.include_router(video_router) 
+
+main_handlers_router.include_router(admin_router)     # Admin handlers
