@@ -58,11 +58,12 @@ def extract_video_data(text: str) -> Optional[List[YoutubeVideo]]:
     """Extract structured data from text using LLM."""
     try:
         # Initialize AI client with instructor
+        openai_client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key="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"
+        )
         client = instructor.from_openai(
-            OpenAI(
-                base_url="https://openrouter.ai/api/v1",
-                api_key="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"
-            ),
+            openai_client,
             mode=instructor.Mode.JSON
         )
         
