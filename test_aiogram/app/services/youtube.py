@@ -60,7 +60,7 @@ def extract_video_data(text: str) -> Optional[List[YoutubeVideo]]:
         # Initialize AI client with instructor
         openai_client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key="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"
+            api_key="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"
         )
         client = instructor.from_openai(
             openai_client,
