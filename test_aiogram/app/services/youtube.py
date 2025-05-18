@@ -68,7 +68,7 @@ def extract_video_data(text: str) -> Optional[List[YoutubeVideo]]:
         )
         
         response = client.chat.completions.create(
-            model="openai/gpt-4.1-nano",
+            model="gpt-4.1-nano",
             response_model=List[YoutubeVideo],
             messages=[
                 {
