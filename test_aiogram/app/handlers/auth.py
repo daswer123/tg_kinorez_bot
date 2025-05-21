@@ -11,6 +11,7 @@ from app.infrastructure.database.middleware import (
     save_user_info, authorize_user, set_waiting_for_password, check_password, get_password_attempts
 )
 from app.core.config import settings
+from app.infrastructure.redis.task_manager import TaskManager
 
 # Module logger
 logger = logging.getLogger(__name__)
@@ -36,6 +37,10 @@ async def handle_password(message: Message):
     Args:
         message (Message): Incoming message with password
     """
+
+    if await TaskManager.is_message_processed(message.message_id, message.chat.id):
+        return
+    
     user = message.from_user
     user_id = user.id
     password_attempt = message.text
@@ -69,6 +74,10 @@ async def cmd_start_non_auth(message: Message):
     Args:
         message (Message): Incoming message with command
     """
+
+    if await TaskManager.is_message_processed(message.message_id, message.chat.id):
+        return
+    
     user = message.from_user
     
     # Save user information to database
@@ -102,6 +111,10 @@ async def request_authorization(callback: CallbackQuery):
     Args:
         callback (CallbackQuery): Callback query from the button
     """
+
+    if await TaskManager.is_message_processed(callback.message.message_id, callback.message.chat.id):
+        return
+    
     user = callback.from_user
     user_id = user.id
     
@@ -129,6 +142,10 @@ async def cmd_start_auth(message: Message):
     Args:
         message (Message): Incoming message with command
     """
+    
+    if await TaskManager.is_message_processed(message.message_id, message.chat.id):
+        return
+    
     user = message.from_user
     
     # Update user information in database
@@ -209,6 +226,9 @@ async def authorize_user_callback(callback: CallbackQuery):
     Args:
         callback (CallbackQuery): Callback query from the button
     """
+    if await TaskManager.is_message_processed(callback.message.message_id, callback.message.chat.id):
+        return
+    
     # Extract user_id from callback data
     user_id = int(callback.data.split("_")[2])
     

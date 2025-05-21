@@ -1,6 +1,7 @@
 import logging
 import os
 from aiogram import Bot, Dispatcher
+from aiogram.types import TelegramObject, ErrorEvent
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
@@ -56,12 +57,14 @@ dp = Dispatcher()
 
 # Error handler для отлова ошибок, связанных с get_chat_history
 @dp.errors()
-async def errors_handler(update, exception):
+async def errors_handler(event: ErrorEvent):
+    exception = event.exception
     if "get_chat_history" in str(exception):
         import traceback
         logger.error(f"get_chat_history error:\n{traceback.format_exc()}")
         # Можно попытаться вернуть какой-то результат, чтобы процесс не останавливался
         return True
+    logger.error(f"{exception}", exc_info=True)
     return False
 
 # Define startup handler

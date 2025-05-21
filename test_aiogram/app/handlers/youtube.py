@@ -24,6 +24,11 @@ async def handle_youtube(message: Message):
     user_id = message.from_user.id
     user_text = message.text
     
+    # Проверяем, не обрабатывалось ли уже это сообщение
+    if await TaskManager.is_message_processed(message.message_id, message.chat.id):
+        logger.info(f"Message {message.message_id} in chat {message.chat.id} was already processed, skipping")
+        return
+    
     # Send processing message
     processing_message = await message.reply("Обрабатываю ваш запрос...")
     

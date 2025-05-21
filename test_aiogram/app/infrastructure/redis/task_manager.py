@@ -254,3 +254,24 @@ class TaskManager:
         pubsub = redis_client.pubsub()
         await pubsub.subscribe(PUBSUB_CHANNEL)
         return pubsub 
+    
+    @staticmethod
+    async def is_message_processed(message_id: int, chat_id: int) -> bool:
+        """
+        Проверяет, было ли сообщение уже обработано.
+        
+        Args:
+            message_id (int): ID сообщения в Telegram
+            chat_id (int): ID чата в Telegram
+            
+        Returns:
+            bool: True если сообщение уже обрабатывалось
+        """
+        redis_client = await get_redis_connection()
+        key = f"processed_message:{chat_id}:{message_id}"
+        
+        success = await redis_client.set(key, "1", ex=3600, nx=True)
+        
+        #Если success == True, значит ключ был установлен (сообщение не обрабатывалось)
+        #Если success == False, значит ключ уже существовал (сообщение уже обрабатывалось)
+        return not success 

@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram.enums import ParseMode
 
 from app.infrastructure.database.middleware import IsAuthorizedFilter
-
+from app.infrastructure.redis.task_manager import TaskManager
 # Create logger for this module
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,9 @@ router = Router(name="start-commands")
 async def cmd_start(message: Message):
     """Handler for /start command for authorized users."""
     user = message.from_user
+
+    if await TaskManager.is_message_processed(message.message_id, message.chat.id):
+        return
     
     # Send welcome message
     await message.reply(
