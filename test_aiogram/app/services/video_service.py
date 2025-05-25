@@ -74,7 +74,7 @@ async def process_multi_source_request(text: str) -> List[VideoSource]:
         List[VideoSource]: Список объектов VideoSource с информацией о видео
     """
     # Используем существующую функцию для извлечения данных
-    videos_data = extract_video_data(text)
+    videos_data = await extract_video_data(text) # Добавляем await
     logger.info(f"!!!!!Extracted videos data: {videos_data}")
     if not videos_data:
         return []

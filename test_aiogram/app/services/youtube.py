@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List, Callable
 from pydantic import BaseModel
 import instructor
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI # Добавляем AsyncOpenAI
 
 from app.core.config import settings
 
@@ -55,20 +55,20 @@ YDL_OPTS = {
     'proxy': settings.proxy_url,
 }
 
-def extract_video_data(text: str) -> Optional[List[YoutubeVideo]]:
+async def extract_video_data(text: str) -> Optional[List[YoutubeVideo]]: # Делаем функцию асинхронной
     """Extract structured data from text using LLM."""
     try:
         # Initialize AI client with instructor
-        openai_client = OpenAI(
+        openai_client = AsyncOpenAI( # Используем AsyncOpenAI
             base_url="https://openrouter.ai/api/v1",
             api_key=settings.openrouter_api_key.get_secret_value()
         )
-        client = instructor.from_openai(
+        client = instructor.from_openai( # instructor должен сам определить, что клиент асинхронный
             openai_client,
             mode=instructor.Mode.JSON
         )
         
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create( # Используем await
             model="google/gemini-2.5-flash-preview-05-20",
             response_model=List[YoutubeVideo],
             messages=[

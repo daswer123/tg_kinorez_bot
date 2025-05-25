@@ -52,14 +52,20 @@ async def handle_video(message: Message):
     
     platforms_summary = ", ".join([f"{count} видео с {platform}" for platform, count in platforms.items()])
     
-    # Update processing message with detected videos count
+    # Determine if any video has vertical_crop
+    has_vertical_crop_tasks = any(video.vertical_crop for video in video_sources)
+    
+    # Construct the initial processing message text
+    text_for_processing_message = f"Обнаружено {len(video_sources)} видео ({platforms_summary}). "
+    if has_vertical_crop_tasks:
+        text_for_processing_message += "Для некоторых видео будет выполнена вертикальная обрезка с извлечением лиц. "
+    text_for_processing_message += "Отправляю в очередь обработки..."
+    
+    # Update processing message immediately after LLM processing
     try:
-        await processing_message.edit_text(
-            f"Обнаружено {len(video_sources)} видео ({platforms_summary}). "
-            f"Отправляю в очередь обработки..."
-        )
+        await processing_message.edit_text(text_for_processing_message)
     except TelegramNetworkError as e:
-        logger.warning(f"Failed to update processing message: {e}")
+        logger.warning(f"Failed to update processing message immediately: {e}")
     
     # Process each video in the response
     tasks_info = []
