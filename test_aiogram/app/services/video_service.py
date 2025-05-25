@@ -17,6 +17,7 @@ class VideoSource(BaseModel):
     end_time: str
     correct_timings: bool = True
     error_details: str = ""
+    vertical_crop: bool = False
 
 def detect_video_source(url: str) -> str:
     """
@@ -74,7 +75,7 @@ async def process_multi_source_request(text: str) -> List[VideoSource]:
     """
     # Используем существующую функцию для извлечения данных
     videos_data = extract_video_data(text)
-    
+    logger.info(f"!!!!!Extracted videos data: {videos_data}")
     if not videos_data:
         return []
     
@@ -94,6 +95,7 @@ async def process_multi_source_request(text: str) -> List[VideoSource]:
             start_time=video.start_time,
             end_time=video.end_time,
             correct_timings=video.correct_timings,
+            vertical_crop=video.vertical_crop,
             error_details=video.error_details if hasattr(video, 'error_details') else ""
         )
         
@@ -125,7 +127,8 @@ async def download_video_fragment(video: VideoSource, request_id: str = "", user
                 video.start_time, 
                 video.end_time, 
                 request_id, 
-                user_id
+                user_id,
+                video.vertical_crop
             )
             if result:
                 result["source"] = "youtube"
@@ -138,7 +141,8 @@ async def download_video_fragment(video: VideoSource, request_id: str = "", user
                 video.start_time, 
                 video.end_time, 
                 request_id, 
-                user_id
+                user_id,
+                video.vertical_crop
             )
             
         elif video.platform == "yadisk":
@@ -148,7 +152,8 @@ async def download_video_fragment(video: VideoSource, request_id: str = "", user
                 video.start_time, 
                 video.end_time, 
                 request_id, 
-                user_id
+                user_id,
+                video.vertical_crop
             )
             
         else:

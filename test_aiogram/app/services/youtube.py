@@ -24,7 +24,8 @@ class YoutubeVideo(BaseModel):
     start_time: str
     end_time: str
     correct_timings: bool
-    error_details: str = ""
+    error_details: str = "",
+    vertical_crop: bool = False
 
 # Define format priorities from high to low
 FORMAT_PRIORITIES = [
@@ -74,7 +75,10 @@ def extract_video_data(text: str) -> Optional[List[YoutubeVideo]]:
                 {
                     "role": "user", 
                     "content": f"Извлеки данные из текста: {text} необходимо получить чистую ссылку, "
-                              "время начала и время конца. Просто извлеки данные, не добавляй ничего лишнего. "
+                              "время начала и время конца, а также проверить на наличие 'ВО'. "
+                              "ТОЛЬКО если 'ВО' стоит после ссылки или таймкода, то vertical_crop=True для этого видео. "
+                              "Важно: 'ВО' применяется только к видео, после которого оно стоит, и не влияет на следующие видео. "
+                              "Просто извлеки данные, не добавляй ничего лишнего. "
                               "Время извлекай в формате 00:00:00 без милисекунд. "
                               "Если тайминги не корректные или не подходят, верни correct_timings=False и "
                               "добавь поле error_details с пояснением проблемы, например: 'Конечное время меньше начального', "
@@ -124,7 +128,7 @@ def get_download_ranges(start_seconds: int, end_seconds: int) -> Callable:
         }]
     return download_ranges_func
 
-def get_video_by_url_and_timings(url: str, start_time: str, end_time: str, request_id: str = "", user_id: str = "") -> Optional[Dict[str, Any]]:
+def get_video_by_url_and_timings(url: str, start_time: str, end_time: str, request_id: str = "", user_id: str = "", vertical_crop: bool = False) -> Optional[Dict[str, Any]]:
     """
     Extract information about a video by URL and timestamps, with download capability.
     
@@ -328,7 +332,8 @@ def get_video_by_url_and_timings(url: str, start_time: str, end_time: str, reque
                 'file_path': final_file_path,  # Add full path to file
                 'request_id': request_id,
                 'user_id': user_id,
-                'url': url
+                'url': url,
+                'vertical_crop': vertical_crop
             }
             
             # Add format and resolution information

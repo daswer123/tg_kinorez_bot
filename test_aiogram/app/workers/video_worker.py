@@ -4,6 +4,7 @@ import time
 import json
 import asyncio
 import uuid
+import shutil
 from typing import Dict, Any, Optional
 
 from aiogram import Bot
@@ -13,7 +14,7 @@ from aiogram.exceptions import TelegramAPIError
 from app.core.config import settings
 from app.infrastructure.redis import TaskManager
 from app.services.video_service import VideoSource, download_video_fragment
-
+from app.services.extract_face.extract_face import extract_separate_videos_for_faces
 # Initialize logger
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,7 @@ class VideoWorker:
         platform = task_data.get("platform", "youtube")  # Default to YouTube for backward compatibility
         chat_id = task_data.get("chat_id")
         reply_to_message_id = task_data.get("reply_to_message_id")
+        vertical_crop = task_data.get("vertical_crop", False)
         
         if not all([video_url, start_time, end_time, chat_id]):
             logger.error(f"Missing required parameters for task {task_id}")
@@ -100,7 +102,8 @@ class VideoWorker:
                 platform=platform,
                 url=video_url,
                 start_time=start_time,
-                end_time=end_time
+                end_time=end_time,
+                vertical_crop=vertical_crop
             )
             
             # Process the video
@@ -169,7 +172,14 @@ class VideoWorker:
                     caption=video_caption,
                     parse_mode="HTML"
                 )
-                
+                if vertical_crop:
+                    # Отправляем новое сообщение о начале обработки
+                    processing_message = await self.bot.send_message(
+                        chat_id=chat_id,
+                        reply_to_message_id=reply_to_message_id,
+                        text="🎬 Обрабатываю ваше видео для извлечения лиц..."
+                    )
+                    await self.process_vertical_crop(chat_id, reply_to_message_id, file_path, user_id, processing_message)
                 # Mark task as completed
                 await TaskManager.update_task_state(task_id, "completed")
                 
@@ -230,3 +240,106 @@ class VideoWorker:
         """Stop the worker."""
         self.running = False
         logger.info(f"Video worker stopped. Processed {self.tasks_processed} tasks.") 
+
+    async def process_vertical_crop(self, chat_id, message_id, file_path, user_id, processing_message):
+        """Process video for vertical crop and face detection."""
+        try:
+            # Создаем временную директорию для обработки
+            temp_dir = f"temp/temp_video_{user_id}_{message_id}"
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            logger.info(f"Downloaded video for user {user_id}: {file_path}")
+            
+            await processing_message.edit_text("🔍 Ищу лица в видео...")
+         
+            # Обрабатываем видео для извлечения лиц
+            output_base_dir = os.path.join(temp_dir, "faces_output")
+            
+            success, face_videos = extract_separate_videos_for_faces(
+                input_video_path=file_path,
+                output_directory_base=output_base_dir,
+                padding_factor=2,
+                target_aspect_ratio=9.0 / 16.0,  # Вертикальный формат
+                output_width=1080,
+                output_height=1920,
+                initial_detection_frames=100,
+                overwrite_output=True,
+                offsets_x=[],
+                offsets_y=[]
+            )
+            
+            if not success:
+                await processing_message.edit_text(
+                    "❌ Произошла ошибка при обработке видео. Пожалуйста, попробуйте позже."
+                )
+                logger.error(f"Face extraction failed for user {user_id}")
+                return
+            
+            if not face_videos:
+                await processing_message.edit_text(
+                    "😔 В вашем видео не удалось обнаружить лица. "
+                    "Попробуйте загрузить видео с более четкими лицами."
+                )
+                logger.info(f"No faces found in video for user {user_id}")
+                return
+            
+            await processing_message.edit_text(
+                f"✅ Найдено {len(face_videos)} лиц! Отправляю видео..."
+            )
+            
+            # Отправляем каждое видео с лицом
+            for i, face_video_path in enumerate(face_videos, 1):
+                try:
+                    if not os.path.exists(face_video_path):
+                        logger.warning(f"Face video file not found: {face_video_path}")
+                        continue
+                    
+                    # Создаем FSInputFile для отправки
+                    video_file_to_send = FSInputFile(
+                        face_video_path,
+                        filename=f"face_{i}.mp4"
+                    )
+                    
+                    # Отправляем видео
+                    await self.bot.send_video(
+                        chat_id=chat_id,
+                        reply_to_message_id=message_id,
+                        video=video_file_to_send,
+                        caption=f"🎭 Лицо #{i} из вашего видео"
+                    )
+                    
+                    logger.info(f"Sent face video {i} to user {user_id}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to send face video {i} to user {user_id}: {e}", exc_info=True)
+                    await self.bot.send_message(
+                        chat_id=chat_id,
+                        reply_to_message_id=message_id,
+                        text=f"❌ Не удалось отправить видео с лицом #{i}"
+                    )
+            
+            # Обновляем финальное сообщение
+            await processing_message.edit_text(
+                f"🎉 Обработка завершена! Отправлено {len(face_videos)} видео с лицами."
+            )
+            
+            # Отмечаем сообщение как обработанное
+            await TaskManager.update_task_state(str(message_id), "completed")
+            
+        except Exception as e:
+            logger.error(f"Error processing video file for user {user_id}: {e}", exc_info=True)
+            try:
+                await processing_message.edit_text(
+                    "❌ Произошла ошибка при обработке видео. Пожалуйста, попробуйте позже."
+                )
+            except:
+                pass
+        
+        finally:
+            # Удаляем временные файлы
+            try:
+                if 'temp_dir' in locals() and os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir)
+                    logger.info(f"Cleaned up temp directory: {temp_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temp directory {temp_dir}: {e}")

@@ -110,7 +110,8 @@ async def handle_video(message: Message):
             "end_time": video.end_time,
             "platform": video.platform,
             "chat_id": message.chat.id,
-            "reply_to_message_id": message.message_id
+            "reply_to_message_id": message.message_id,
+            "vertical_crop": video.vertical_crop
         }
         
         # Add task to queue

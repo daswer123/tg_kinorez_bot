@@ -100,7 +100,8 @@ async def handle_youtube(message: Message):
             "start_time": video.start_time,
             "end_time": video.end_time,
             "chat_id": message.chat.id,
-            "reply_to_message_id": message.message_id
+            "reply_to_message_id": message.message_id,
+            "vertical_crop": video.vertical_crop
         }
         
         # Add task to queue
