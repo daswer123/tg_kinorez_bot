@@ -73,6 +73,7 @@ async def handle_video(message: Message):
                 f"• URL: {video.url}\n"
                 f"• Начало: {video.start_time}\n"
                 f"• Конец: {video.end_time}\n"
+                f"• Вертикальная обрезка: {'Да' if video.vertical_crop else 'Нет'}\n"
             )
         else:
             status_text = (
@@ -81,6 +82,7 @@ async def handle_video(message: Message):
                 f"• Видео: {video.url}\n"
                 f"• Начало: {video.start_time}\n"
                 f"• Конец: {video.end_time}\n"
+                f"• Вертикальная обрезка: {'Да' if video.vertical_crop else 'Нет'}\n"
             )
         
         if not video.correct_timings:
@@ -111,7 +113,8 @@ async def handle_video(message: Message):
             "platform": video.platform,
             "chat_id": message.chat.id,
             "reply_to_message_id": message.message_id,
-            "vertical_crop": video.vertical_crop
+            "vertical_crop": video.vertical_crop,
+            "status_message_id": processing_message.message_id if processing_message else None
         }
         
         # Add task to queue
@@ -128,6 +131,7 @@ async def handle_video(message: Message):
                 "start_time": video.start_time,
                 "end_time": video.end_time,
                 "platform": video.platform,
+                "vertical_crop": video.vertical_crop, # Добавляем vertical_crop сюда
                 "index": i,
                 "total": len(video_sources)
             })
@@ -157,13 +161,14 @@ async def handle_video(message: Message):
                 f"• Платформа: {task['platform']}\n"
                 f"• URL: {task['video_url']}\n"
                 f"• Начало: {task['start_time']}\n"
-                f"• Конец: {task['end_time']}\n\n"
+                f"• Конец: {task['end_time']}\n"
+                f"• Вертикальная обрезка: {'Да' if task.get('vertical_crop') else 'Нет'}\n\n"
                 f"Вы получите уведомление, когда видео будет готово.",
                 parse_mode=ParseMode.HTML
             )
         else:
             tasks_text = "\n".join([
-                f"{i+1}. {task['platform']}: {task['video_url']} | {task['start_time']}-{task['end_time']}"
+                f"{i+1}. {task['platform']}: {task['video_url']} | {task['start_time']}-{task['end_time']} | Вертикальная обрезка: {'Да' if task.get('vertical_crop') else 'Нет'}"
                 for i, task in enumerate(tasks_info)
             ])
             
@@ -241,6 +246,7 @@ async def cmd_check_task(message: Message):
                 f"• URL: {video_url}\n"
                 f"• Начало: {start_time}\n"
                 f"• Конец: {end_time}\n"
+                f"• Вертикальная обрезка: {'Да' if task_data.get('vertical_crop') else 'Нет'}\n"
             )
         else:
             task_info = f"• Тип задачи: {task_type}\n"

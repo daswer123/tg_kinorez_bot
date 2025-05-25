@@ -146,6 +146,7 @@ async def handle_youtube(message: Message):
                 f"• URL: {task['video_url']}\n"
                 f"• Начало: {task['start_time']}\n"
                 f"• Конец: {task['end_time']}\n\n"
+                # f"• Вертикальное обрезка: {task['vertical_crop']}\n\n"
                 f"Вы получите уведомление, когда видео будет готово.",
                 parse_mode=ParseMode.HTML
             )

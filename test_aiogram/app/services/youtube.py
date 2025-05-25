@@ -24,7 +24,7 @@ class YoutubeVideo(BaseModel):
     start_time: str
     end_time: str
     correct_timings: bool
-    error_details: str = "",
+    error_details: str = ""
     vertical_crop: bool = False
 
 # Define format priorities from high to low
@@ -60,7 +60,7 @@ def extract_video_data(text: str) -> Optional[List[YoutubeVideo]]:
     try:
         # Initialize AI client with instructor
         openai_client = OpenAI(
-            # base_url="https://openrouter.ai/api/v1",
+            base_url="https://openrouter.ai/api/v1",
             api_key=settings.openrouter_api_key.get_secret_value()
         )
         client = instructor.from_openai(
@@ -69,20 +69,42 @@ def extract_video_data(text: str) -> Optional[List[YoutubeVideo]]:
         )
         
         response = client.chat.completions.create(
-            model="gpt-4.1-nano",
+            model="google/gemini-2.5-flash-preview-05-20",
             response_model=List[YoutubeVideo],
             messages=[
                 {
                     "role": "user", 
-                    "content": f"Извлеки данные из текста: {text} необходимо получить чистую ссылку, "
-                              "время начала и время конца, а также проверить на наличие 'ВО'. "
-                              "ТОЛЬКО если 'ВО' стоит после ссылки или таймкода, то vertical_crop=True для этого видео. "
-                              "Важно: 'ВО' применяется только к видео, после которого оно стоит, и не влияет на следующие видео. "
-                              "Просто извлеки данные, не добавляй ничего лишнего. "
-                              "Время извлекай в формате 00:00:00 без милисекунд. "
-                              "Если тайминги не корректные или не подходят, верни correct_timings=False и "
-                              "добавь поле error_details с пояснением проблемы, например: 'Конечное время меньше начального', "
-                              "'Некорректный формат времени', 'Тайминги выходят за пределы длительности видео' и т.д."
+                    "content": f"""Извлеки данные из текста: {text}
+
+ЗАДАЧА: Найти YouTube ссылки с таймингами и определить параметр vertical_crop.
+
+ПРАВИЛА ИЗВЛЕЧЕНИЯ:
+1. URL: Извлекай чистую ссылку на YouTube видео
+2. Время: Формат 00:00:00 (часы:минуты:секунды), без миллисекунд
+3. vertical_crop: True ТОЛЬКО если "ВО" стоит сразу после ссылки или таймкода этого конкретного видео
+
+ПРИМЕРЫ:
+
+Пример 1 (vertical_crop=True):
+"https://youtu.be/abc123 00:10:00-00:15:00 ВО"
+Результат: url="https://youtu.be/abc123", start_time="00:10:00", end_time="00:15:00", vertical_crop=True
+
+Пример 2 (vertical_crop=False):
+"https://youtu.be/abc123 00:10:00-00:15:00"
+Результат: url="https://youtu.be/abc123", start_time="00:10:00", end_time="00:15:00", vertical_crop=False
+
+Пример 3 (несколько видео):
+"https://youtu.be/abc123 00:10:00-00:15:00 ВО https://youtu.be/def456 00:20:00-00:25:00"
+Результат: 
+- Видео 1: vertical_crop=True (ВО после первого видео)
+- Видео 2: vertical_crop=False (ВО не относится ко второму видео)
+
+ВАЛИДАЦИЯ ТАЙМИНГОВ:
+- Если end_time <= start_time: correct_timings=False, error_details="Конечное время меньше или равно начальному"
+- Если неверный формат времени: correct_timings=False, error_details="Некорректный формат времени"
+- Если время отрицательное: correct_timings=False, error_details="Отрицательное время"
+
+ВАЖНО: "ВО" действует только на видео, которое стоит непосредственно перед ним!"""
                 }
             ],
         )

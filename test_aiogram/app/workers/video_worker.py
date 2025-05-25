@@ -87,6 +87,7 @@ class VideoWorker:
         chat_id = task_data.get("chat_id")
         reply_to_message_id = task_data.get("reply_to_message_id")
         vertical_crop = task_data.get("vertical_crop", False)
+        status_message_id = task_data.get("status_message_id") # Извлекаем ID статусного сообщения
         
         if not all([video_url, start_time, end_time, chat_id]):
             logger.error(f"Missing required parameters for task {task_id}")
@@ -173,15 +174,38 @@ class VideoWorker:
                     parse_mode="HTML"
                 )
                 if vertical_crop:
-                    # Отправляем новое сообщение о начале обработки
-                    processing_message = await self.bot.send_message(
-                        chat_id=chat_id,
-                        reply_to_message_id=reply_to_message_id,
-                        text="🎬 Обрабатываю ваше видео для извлечения лиц..."
-                    )
-                    await self.process_vertical_crop(chat_id, reply_to_message_id, file_path, user_id, processing_message)
-                # Mark task as completed
-                await TaskManager.update_task_state(task_id, "completed")
+                    if status_message_id:
+                        try:
+                            await self.bot.edit_message_text(
+                                text="🎬 Обрабатываю ваше видео для извлечения лиц...",
+                                chat_id=chat_id,
+                                message_id=status_message_id
+                            )
+                            # Передаем task_id, status_message_id для дальнейшего редактирования
+                            await self.process_vertical_crop(task_id, chat_id, reply_to_message_id, file_path, user_id, status_message_id, self.bot)
+                        except TelegramAPIError as e:
+                            logger.error(f"Failed to edit status message {status_message_id} for vertical crop: {e}. Sending new message.")
+                            # Если не удалось отредактировать, отправляем новое (запасной вариант)
+                            new_processing_message = await self.bot.send_message(
+                                chat_id=chat_id,
+                                reply_to_message_id=reply_to_message_id,
+                                text="🎬 Обрабатываю ваше видео для извлечения лиц..."
+                            )
+                            await self.process_vertical_crop(task_id, chat_id, reply_to_message_id, file_path, user_id, new_processing_message.message_id, self.bot, is_new_message=True)
+                    else:
+                        # Если status_message_id нет, отправляем новое сообщение (старое поведение)
+                        new_processing_message = await self.bot.send_message(
+                            chat_id=chat_id,
+                            reply_to_message_id=reply_to_message_id,
+                            text="🎬 Обрабатываю ваше видео для извлечения лиц..."
+                        )
+                        await self.process_vertical_crop(task_id, chat_id, reply_to_message_id, file_path, user_id, new_processing_message.message_id, self.bot, is_new_message=True)
+                
+                # Mark task as completed (основная часть задачи завершена, vertical_crop - дополнительно)
+                # Статус completion для vertical_crop будет установлен внутри process_vertical_crop,
+                # или здесь, если vertical_crop не было.
+                if not vertical_crop:
+                    await TaskManager.update_task_state(task_id, "completed", result_main_video="Видео успешно отправлено")
                 
             except TelegramAPIError as e:
                 logger.error(f"Error sending video: {e}")
@@ -239,26 +263,34 @@ class VideoWorker:
     async def stop(self):
         """Stop the worker."""
         self.running = False
-        logger.info(f"Video worker stopped. Processed {self.tasks_processed} tasks.") 
+        logger.info(f"Video worker stopped. Processed {self.tasks_processed} tasks.")
 
-    async def process_vertical_crop(self, chat_id, message_id, file_path, user_id, processing_message):
+    async def process_vertical_crop(self, task_id: str, chat_id: int, original_message_id: int, file_path: str, user_id: int, message_id_to_edit: int, bot: Bot, is_new_message: bool = False):
         """Process video for vertical crop and face detection."""
+        
+        async def edit_status_message(text: str):
+            try:
+                await bot.edit_message_text(text=text, chat_id=chat_id, message_id=message_id_to_edit)
+            except TelegramAPIError as e:
+                logger.error(f"Failed to edit status message {message_id_to_edit}: {e}")
+
         try:
             # Создаем временную директорию для обработки
-            temp_dir = f"temp/temp_video_{user_id}_{message_id}"
+            # Используем original_message_id для уникальности имени папки, так как оно связано с исходным запросом пользователя
+            temp_dir = f"temp/temp_video_{user_id}_{original_message_id}"
             os.makedirs(temp_dir, exist_ok=True)
             
-            logger.info(f"Downloaded video for user {user_id}: {file_path}")
+            logger.info(f"Processing vertical crop for task {task_id}, user {user_id}: {file_path}")
             
-            await processing_message.edit_text("🔍 Ищу лица в видео...")
-         
+            await edit_status_message("🔍 Ищу лица в видео...")
+          
             # Обрабатываем видео для извлечения лиц
             output_base_dir = os.path.join(temp_dir, "faces_output")
             
             success, face_videos = extract_separate_videos_for_faces(
                 input_video_path=file_path,
                 output_directory_base=output_base_dir,
-                padding_factor=2,
+                padding_factor=2.2,
                 target_aspect_ratio=9.0 / 16.0,  # Вертикальный формат
                 output_width=1080,
                 output_height=1920,
@@ -269,29 +301,33 @@ class VideoWorker:
             )
             
             if not success:
-                await processing_message.edit_text(
-                    "❌ Произошла ошибка при обработке видео. Пожалуйста, попробуйте позже."
+                await edit_status_message(
+                    "❌ Произошла ошибка при извлечении лиц из видео. Пожалуйста, попробуйте позже."
                 )
-                logger.error(f"Face extraction failed for user {user_id}")
+                logger.error(f"Face extraction failed for task {task_id}, user {user_id}")
+                await TaskManager.update_task_state(task_id, "failed", error_vertical_crop="Face extraction failed")
                 return
             
             if not face_videos:
-                await processing_message.edit_text(
+                await edit_status_message(
                     "😔 В вашем видео не удалось обнаружить лица. "
                     "Попробуйте загрузить видео с более четкими лицами."
                 )
-                logger.info(f"No faces found in video for user {user_id}")
+                logger.info(f"No faces found in video for task {task_id}, user {user_id}")
+                # Считаем это успешным завершением этапа vertical_crop, но без результатов
+                await TaskManager.update_task_state(task_id, "completed", result_vertical_crop="No faces found")
                 return
             
-            await processing_message.edit_text(
+            await edit_status_message(
                 f"✅ Найдено {len(face_videos)} лиц! Отправляю видео..."
             )
             
             # Отправляем каждое видео с лицом
+            sent_face_videos_count = 0
             for i, face_video_path in enumerate(face_videos, 1):
                 try:
                     if not os.path.exists(face_video_path):
-                        logger.warning(f"Face video file not found: {face_video_path}")
+                        logger.warning(f"Face video file not found: {face_video_path} for task {task_id}")
                         continue
                     
                     # Создаем FSInputFile для отправки
@@ -301,38 +337,39 @@ class VideoWorker:
                     )
                     
                     # Отправляем видео
-                    await self.bot.send_video(
+                    await bot.send_video(
                         chat_id=chat_id,
-                        reply_to_message_id=message_id,
+                        reply_to_message_id=original_message_id,
                         video=video_file_to_send,
                         caption=f"🎭 Лицо #{i} из вашего видео"
                     )
-                    
-                    logger.info(f"Sent face video {i} to user {user_id}")
+                    sent_face_videos_count += 1
+                    logger.info(f"Sent face video {i} to user {user_id} for task {task_id}")
                     
                 except Exception as e:
-                    logger.error(f"Failed to send face video {i} to user {user_id}: {e}", exc_info=True)
-                    await self.bot.send_message(
+                    logger.error(f"Failed to send face video {i} to user {user_id} for task {task_id}: {e}", exc_info=True)
+                    await bot.send_message(
                         chat_id=chat_id,
-                        reply_to_message_id=message_id,
+                        reply_to_message_id=original_message_id,
                         text=f"❌ Не удалось отправить видео с лицом #{i}"
                     )
             
             # Обновляем финальное сообщение
-            await processing_message.edit_text(
-                f"🎉 Обработка завершена! Отправлено {len(face_videos)} видео с лицами."
-            )
+            final_status_text = f"🎉 Обработка вертикальной обрезки завершена! Отправлено {sent_face_videos_count} из {len(face_videos)} видео с лицами."
+            await edit_status_message(final_status_text)
             
-            # Отмечаем сообщение как обработанное
-            await TaskManager.update_task_state(str(message_id), "completed")
+            # Отмечаем основную задачу как выполненную
+            await TaskManager.update_task_state(task_id, "completed", result_vertical_crop=f"Отправлено {sent_face_videos_count}/{len(face_videos)} видео с лицами")
             
         except Exception as e:
-            logger.error(f"Error processing video file for user {user_id}: {e}", exc_info=True)
+            logger.error(f"Error processing vertical crop for task {task_id}, user {user_id}: {e}", exc_info=True)
             try:
-                await processing_message.edit_text(
-                    "❌ Произошла ошибка при обработке видео. Пожалуйста, попробуйте позже."
+                await edit_status_message(
+                    "❌ Произошла ошибка при обработке видео для вертикальной обрезки. Пожалуйста, попробуйте позже."
                 )
+                await TaskManager.update_task_state(task_id, "failed", error_vertical_crop=str(e))
             except:
+                await TaskManager.update_task_state(task_id, "failed", error_vertical_crop=str(e), error_sending_status_update=True)
                 pass
         
         finally:

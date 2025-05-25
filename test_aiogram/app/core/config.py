@@ -3,6 +3,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr, HttpUrl, Field
 from typing import Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 class Settings(BaseSettings):
     """Main configuration class that reads variables from .env file."""
     # .env file configuration
