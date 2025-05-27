@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.infrastructure.redis import TaskManager
 from app.services.video_service import VideoSource, download_video_fragment
 from app.services.extract_face.extract_face import extract_separate_videos_for_faces
+from app.services.extract_face_v2.deepface_detector import process_video_for_speaker_cuts
 # Initialize logger
 logger = logging.getLogger(__name__)
 
@@ -287,18 +288,58 @@ class VideoWorker:
             # Обрабатываем видео для извлечения лиц
             output_base_dir = os.path.join(temp_dir, "faces_output")
             
-            success, face_videos = extract_separate_videos_for_faces(
+            # success, face_videos = extract_separate_videos_for_faces(
+            #     input_video_path=file_path,
+            #     output_directory_base=output_base_dir,
+            #     padding_factor=2.3,
+            #     target_aspect_ratio=9.0 / 16.0,  # Вертикальный формат
+            #     output_width=1080,
+            #     output_height=1920,
+            #     initial_detection_frames=300,
+            #     overwrite_output=True,
+            #     offsets_x=[],
+            #     offsets_y=[]
+            # )
+
+            success, face_videos, error_msg = process_video_for_speaker_cuts(
                 input_video_path=file_path,
-                output_directory_base=output_base_dir,
-                padding_factor=2.2,
-                target_aspect_ratio=9.0 / 16.0,  # Вертикальный формат
-                output_width=1080,
-                output_height=1920,
-                initial_detection_frames=100,
-                overwrite_output=True,
-                offsets_x=[],
-                offsets_y=[]
+                output_save_dir=output_base_dir,
+                
+            # DeepFace параметры
+            recognition_model_name="Facenet512",
+            detector_backend="mtcnn",
+            similarity_threshold_base=0.68,
+            
+            # Анализ
+            fps_to_process_analysis=5,
+            analysis_max_width=480,
+            max_frames_to_keep_track_without_detection_factor=3,
+            
+            # Выбор спикеров
+            min_track_duration_seconds=3,
+            autodetect_speaker_count=False,
+            top_n_faces_to_crop=2,
+            
+            # Виртуальная камера
+            cam_output_width=1080,
+            cam_output_height=1920,
+            cam_target_head_height_ratio=0.35,
+            cam_target_head_pos_x_ratio=0.5,
+            cam_target_head_pos_y_ratio=0.5,
+            cam_smoothing_factor_position=0.1,
+            cam_smoothing_factor_size=0.1,
+            
+            # Зона комфорта
+            cam_comfort_zone_size_delta_r=0.07,
+            cam_comfort_zone_pos_x_delta_r=0.07,
+            cam_comfort_zone_pos_y_delta_r=0.07,
+            
+            # Вывод
+            output_video_fps_factor=1.0,
+            output_video_codec='mp4v',
+            add_audio_to_output=True
             )
+
             
             if not success:
                 await edit_status_message(

@@ -1,2 +1,3 @@
 test_aiogram/.env
 /test_aiogram/temp_videos
+/test_aiogram/deepface_weights

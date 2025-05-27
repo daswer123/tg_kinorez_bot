@@ -21,4 +21,7 @@ python-dateutil>=2.8.2
 typing-extensions>=4.7.1
 urllib3>=1.26.15
 opencv-python>=4.8.0.76
-numpy>=1.24.3
+numpy<=1.26.3
+deepface>=0.0.72
+scipy>=1.10.0
+tf-keras

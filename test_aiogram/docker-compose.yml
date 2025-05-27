@@ -90,6 +90,7 @@ services:
     volumes:
       - telegram-bot-api-data:/var/lib/telegram-bot-api:ro
       - ./temp_videos:/app/temp_videos
+      - ./deepface_weights:/root/.deepface/weights/
     depends_on:
       postgres:
         condition: service_healthy
